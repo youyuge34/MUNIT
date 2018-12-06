@@ -24,7 +24,7 @@ parser.add_argument("--resume", action="store_true")
 parser.add_argument('--trainer', type=str, default='MUNIT', help="MUNIT|UNIT")
 opts = parser.parse_args()
 
-cudnn.benchmark = True
+cudnn.benchmark = True # trick：加速training
 
 # Load experiment setting
 config = get_config(opts.config)
@@ -38,7 +38,7 @@ if opts.trainer == 'MUNIT':
 elif opts.trainer == 'UNIT':
     trainer = UNIT_Trainer(config)
 else:
-    sys.exit("Only support MUNIT|UNIT")
+    sys.exit("Only support MUNIT|UNIT|MOUNT")
 trainer.cuda()
 train_loader_a, train_loader_b, test_loader_a, test_loader_b = get_all_data_loaders(config)
 train_display_images_a = torch.stack([train_loader_a.dataset[i] for i in range(display_size)]).cuda()
@@ -54,17 +54,21 @@ checkpoint_directory, image_directory = prepare_sub_folder(output_directory)
 shutil.copy(opts.config, os.path.join(output_directory, 'config.yaml')) # copy config file to output folder
 
 # Start training
+# load模型dict参数（gen,dis,opt*2)，通过iterations重加载schedulers(管理lr)
 iterations = trainer.resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
 while True:
     for it, (images_a, images_b) in enumerate(zip(train_loader_a, train_loader_b)):
-        trainer.update_learning_rate()
+        trainer.update_learning_rate()  # 使用scheduler逐步降低俩opt中lr的值 
+
+        # detach 为了设置照片ab不进行梯度更新 == .require_grad_(False)
         images_a, images_b = images_a.cuda().detach(), images_b.cuda().detach()
 
-        with Timer("Elapsed time in update: %f"):
-            # Main training code
-            trainer.dis_update(images_a, images_b, config)
-            trainer.gen_update(images_a, images_b, config)
-            torch.cuda.synchronize()
+        # with Timer("Elapsed time in update: %f"):
+            # Main training code，
+            # 正向传播 + 计算各种loss + backward() +opt.step()权重更新
+        trainer.dis_update(images_a, images_b, config)
+        trainer.gen_update(images_a, images_b, config)
+        torch.cuda.synchronize()
 
         # Dump training stats in log file
         if (iterations + 1) % config['log_iter'] == 0:
