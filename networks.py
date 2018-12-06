@@ -104,6 +104,7 @@ class AdaINGen(nn.Module):
         # content encoder
         self.enc_content = ContentEncoder(n_downsample, n_res, input_dim, dim, 'in', activ, pad_type=pad_type)
         self.dec = Decoder(n_downsample, n_res, self.enc_content.output_dim, input_dim, res_norm='adain', activ=activ, pad_type=pad_type)
+        self.dec_c_o = Decoder(n_downsample, n_res, self.enc_content.output_dim, input_dim, res_norm='in', activ=activ, pad_type=pad_type)
 
         # MLP to generate AdaIN parameters
         self.mlp = MLP(style_dim, self.get_num_adain_params(self.dec), mlp_dim, 3, norm='none', activ=activ)
@@ -125,6 +126,13 @@ class AdaINGen(nn.Module):
         adain_params = self.mlp(style)
         self.assign_adain_params(adain_params, self.dec)
         images = self.dec(content)
+        return images
+
+    def decode_content_only(self, content):
+        # decode content codes to an sunny image
+        # adain_params = self.mlp(style)
+        # self.assign_adain_params(adain_params, self.dec)
+        images = self.dec_c_o(content)
         return images
 
     def assign_adain_params(self, adain_params, model):

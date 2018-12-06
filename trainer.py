@@ -263,7 +263,7 @@ class MOUNT_Trainer(nn.Module):
         c_a, s_a_fake = self.gen_a.encode(x_a)
         c_b, s_b_fake = self.gen_b.encode(x_b)
         x_ba = self.gen_a.decode(c_b, s_a)
-        x_ab = self.gen_b.decode(c_a, s_b)
+        x_ab = self.gen_b.decode_content_only(c_a)
         self.train()
         return x_ab, x_ba
 

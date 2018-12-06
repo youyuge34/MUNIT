@@ -262,6 +262,7 @@ def get_scheduler(optimizer, hyperparameters, iterations=-1):
     if 'lr_policy' not in hyperparameters or hyperparameters['lr_policy'] == 'constant':
         scheduler = None # constant scheduler
     elif hyperparameters['lr_policy'] == 'step':
+        # 'step_size': 每过间隔step调整lr
         scheduler = lr_scheduler.StepLR(optimizer, step_size=hyperparameters['step_size'],
                                         gamma=hyperparameters['gamma'], last_epoch=iterations)
     else:
@@ -301,7 +302,7 @@ class Timer:
         self.start_time = time.time()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        print(self.msg % (time.time() - self.start_time))
+        # print(self.msg % (time.time() - self.start_time))
 
 
 def pytorch03_to_pytorch04(state_dict_base, trainer_name):

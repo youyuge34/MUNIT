@@ -5,7 +5,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 from utils import get_all_data_loaders, prepare_sub_folder, write_html, write_loss, get_config, write_2images, Timer
 import argparse
 from torch.autograd import Variable
-from trainer import MUNIT_Trainer, UNIT_Trainer
+from trainer import MUNIT_Trainer, UNIT_Trainer, MOUNT_Trainer
 import torch.backends.cudnn as cudnn
 import torch
 try:
@@ -37,6 +37,8 @@ if opts.trainer == 'MUNIT':
     trainer = MUNIT_Trainer(config)
 elif opts.trainer == 'UNIT':
     trainer = UNIT_Trainer(config)
+elif opts.trainer == 'MOUNT':
+    trainer = MOUNT_Trainer(config)
 else:
     sys.exit("Only support MUNIT|UNIT|MOUNT")
 trainer.cuda()
@@ -58,7 +60,9 @@ shutil.copy(opts.config, os.path.join(output_directory, 'config.yaml')) # copy c
 iterations = trainer.resume(checkpoint_directory, hyperparameters=config) if opts.resume else 0
 while True:
     for it, (images_a, images_b) in enumerate(zip(train_loader_a, train_loader_b)):
-        trainer.update_learning_rate()  # 使用scheduler逐步降低俩opt中lr的值 
+        
+        # 使用scheduler逐步降低俩opt中lr的值,仅仅当config：lr_policy ： step 
+        trainer.update_learning_rate()  
 
         # detach 为了设置照片ab不进行梯度更新 == .require_grad_(False)
         images_a, images_b = images_a.cuda().detach(), images_b.cuda().detach()
@@ -83,12 +87,12 @@ while True:
             write_2images(test_image_outputs, display_size, image_directory, 'test_%08d' % (iterations + 1))
             write_2images(train_image_outputs, display_size, image_directory, 'train_%08d' % (iterations + 1))
             # HTML
-            write_html(output_directory + "/index.html", iterations + 1, config['image_save_iter'], 'images')
+            # write_html(output_directory + "/index.html", iterations + 1, config['image_save_iter'], 'images')
 
-        if (iterations + 1) % config['image_display_iter'] == 0:
-            with torch.no_grad():
-                image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
-            write_2images(image_outputs, display_size, image_directory, 'train_current')
+        # if (iterations + 1) % config['image_display_iter'] == 0:
+        #     with torch.no_grad():
+        #         image_outputs = trainer.sample(train_display_images_a, train_display_images_b)
+        #     write_2images(image_outputs, display_size, image_directory, 'train_current')
 
         # Save network weights
         if (iterations + 1) % config['snapshot_save_iter'] == 0:

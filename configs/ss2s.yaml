@@ -5,8 +5,8 @@
 image_save_iter: 500        # How often do you want to save output images during training
 image_display_iter: 1000       # How often do you want to display output images during training
 display_size: 16              # How many images do you want to display each time
-snapshot_save_iter: 500     # How often do you want to save trained models
-log_iter: 200                  # How often do you want to log the training stats
+snapshot_save_iter: 1000     # How often do you want to save trained models
+log_iter: 500                  # How often do you want to log the training stats
 
 # optimization options
 max_iter: 1000000             # maximum number of training iterations
