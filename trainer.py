@@ -312,7 +312,7 @@ class MOUNT_Trainer(nn.Module):
                               hyperparameters['recon_s_w'] * self.loss_gen_recon_s_a + \
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_a + \
                               hyperparameters['recon_x_w'] * self.loss_gen_recon_x_b + \
-                              hyperparameters['recon_s_w'] * self.loss_gen_recon_s_b + \
+                              hyperparameters['recon_s_w'] * 0 + \
                               hyperparameters['recon_c_w'] * self.loss_gen_recon_c_b + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_a + \
                               hyperparameters['recon_x_cyc_w'] * self.loss_gen_cycrecon_x_b + \

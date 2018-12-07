@@ -302,6 +302,7 @@ class Timer:
         self.start_time = time.time()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
+        pass
         # print(self.msg % (time.time() - self.start_time))
 
 
