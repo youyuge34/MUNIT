@@ -18,3 +18,5 @@ models/
 *.pt
 datasets/
 dataset/
+results/
+inputs/
