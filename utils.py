@@ -110,13 +110,22 @@ def eformat(f, prec):
 
 
 def __write_images(image_outputs, display_image_num, file_name):
+    # expand 只能将维度为1的（channel）扩展为3，其余不变
     image_outputs = [images.expand(-1, 3, -1, -1) for images in image_outputs] # expand gray-scale images to 3 channels
     image_tensor = torch.cat([images[:display_image_num] for images in image_outputs], 0)
+    # sprite image 雪碧图
     image_grid = vutils.make_grid(image_tensor.data, nrow=display_image_num, padding=0, normalize=True)
+    # nrow (int, optional) – 每一行显示的图像数. 最终图标尺寸为(B / nrow, nrow). 默认为8
     vutils.save_image(image_grid, file_name, nrow=1)
 
 
 def write_2images(image_outputs, display_image_num, image_directory, postfix):
+    '''
+    image_outputs: x_a, x_a_recon, x_ab1, x_ab2, x_b, x_b_recon, x_ba1, x_ba2
+                    x_a shape: (display_size=16, 3, h, w)
+                    x_a_recocn: cat后 (16，3, h, w)
+    display_image_num: 16 in config
+    '''
     n = len(image_outputs)
     __write_images(image_outputs[0:n//2], display_image_num, '%s/gen_a2b_%s.jpg' % (image_directory, postfix))
     __write_images(image_outputs[n//2:n], display_image_num, '%s/gen_b2a_%s.jpg' % (image_directory, postfix))

@@ -331,7 +331,7 @@ class MOUNT_Trainer(nn.Module):
     def sample(self, x_a, x_b):
         self.eval()  # 告诉pytorch进入eval阶段
         s_a1 = Variable(self.s_a)
-        s_b1 = Variable(self.s_b)
+        s_b1 = Variable(self.s_b) # shape 16,8,1,1 下同
         s_a2 = Variable(torch.randn(x_a.size(0), self.style_dim, 1, 1).cuda())
         s_b2 = Variable(torch.randn(x_b.size(0), self.style_dim, 1, 1).cuda())
         x_a_recon, x_b_recon, x_ba1, x_ba2, x_ab1, x_ab2 = [], [], [], [], [], []
@@ -344,6 +344,8 @@ class MOUNT_Trainer(nn.Module):
             x_ba2.append(self.gen_a.decode(c_b, s_a2[i].unsqueeze(0)))
             x_ab1.append(self.gen_b.decode_content_only(c_a))
             x_ab2.append(self.gen_b.decode_content_only(c_a))
+        # cat : 0dim 连接起来，不产生new dim
+        # 因为输出维度：（1，c, h, w)
         x_a_recon, x_b_recon = torch.cat(x_a_recon), torch.cat(x_b_recon)
         x_ba1, x_ba2 = torch.cat(x_ba1), torch.cat(x_ba2)
         x_ab1, x_ab2 = torch.cat(x_ab1), torch.cat(x_ab2)
