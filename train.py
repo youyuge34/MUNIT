@@ -18,9 +18,6 @@ import tensorboardX
 import shutil
 
 if __name__ == '__main__':
-    main()
-
-def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default='configs/edges2handbags_folder.yaml', help='Path to the config file.')
     parser.add_argument('--output_path', type=str, default='.', help="outputs path")
