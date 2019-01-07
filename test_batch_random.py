@@ -4,7 +4,7 @@ Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses
 """
 from __future__ import print_function
 from utils import get_config, get_data_loader_folder, pytorch03_to_pytorch04, load_inception
-from trainer import MOUNT_Trainer
+from trainer import MUNIT_Trainer, UNIT_Trainer
 from torch import nn
 from scipy.stats import entropy
 import torch.nn.functional as F
@@ -20,20 +20,20 @@ except ImportError: # will be 3.x series
 import sys
 import torch
 import os
-import time
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, default='configs/edges2handbags_folder', help='Path to the config file.')
 parser.add_argument('--input_folder', type=str, help="input image folder")
 parser.add_argument('--output_folder', type=str, help="output image folder")
 parser.add_argument('--checkpoint', type=str, help="checkpoint of autoencoders")
-# parser.add_argument('--a2b', type=int, help="1 for a2b and others for b2a", default=1)
+parser.add_argument('--a2b', type=int, help="1 for a2b and others for b2a", default=1)
 parser.add_argument('--seed', type=int, default=1, help="random seed")
-# parser.add_argument('--num_style',type=int, default=10, help="number of styles to sample")
-# parser.add_argument('--synchronized', action='store_true', help="whether use synchronized style code or not")
+parser.add_argument('--num_style',type=int, default=10, help="number of styles to sample")
+parser.add_argument('--synchronized', action='store_true', help="whether use synchronized style code or not")
 parser.add_argument('--output_only', action='store_true', help="whether use synchronized style code or not")
 parser.add_argument('--output_path', type=str, default='.', help="path for logs, checkpoints, and VGG model weight")
-parser.add_argument('--trainer', type=str, default='MOUNT', help="MOUNT")
+parser.add_argument('--trainer', type=str, default='MUNIT', help="MUNIT|UNIT")
 parser.add_argument('--compute_IS', action='store_true', help="whether to compute Inception Score or not")
 parser.add_argument('--compute_CIS', action='store_true', help="whether to compute Conditional Inception Score or not")
 parser.add_argument('--inception_a', type=str, default='.', help="path to the pretrained inception network for domain A")
@@ -47,7 +47,7 @@ torch.cuda.manual_seed(opts.seed)
 
 # Load experiment setting
 config = get_config(opts.config)
-input_dim = config['input_dim_a'] 
+input_dim = config['input_dim_a'] if opts.a2b else config['input_dim_b']
 
 # Load the inception networks if we need to compute IS or CIIS
 if opts.compute_IS or opts.compute_IS:
@@ -59,16 +59,25 @@ if opts.compute_IS or opts.compute_IS:
     inception_up = nn.Upsample(size=(299, 299), mode='bilinear')
 
 # Setup model and data loader
-# 此处的ImageFolder是自定义的，不是pytorch里的那个类
-# image_names: list[(<PIL.Image.Image image mode=RGB size=341x256 at 0x1BD07CB4A58>, 'inputs/0068180.jpg')]
 image_names = ImageFolder(opts.input_folder, transform=None, return_paths=True)
-data_loader = get_data_loader_folder(opts.input_folder, 1, False, new_size=config['new_size'], crop=False, num_workers=0)
+if 'new_size' in config:
+    new_size = config['new_size']
+else:
+    if opts.a2b==1:
+        new_size = config['new_size_a']
+    else:
+        new_size = config['new_size_b']
+
+data_loader = get_data_loader_folder(opts.input_folder, 0, False, new_size=config['new_size_a'], crop=False)
 
 config['vgg_model_path'] = opts.output_path
-if opts.trainer == 'MOUNT':
-    trainer = MOUNT_Trainer(config)
+if opts.trainer == 'MUNIT':
+    style_dim = config['gen']['style_dim']
+    trainer = MUNIT_Trainer(config)
+elif opts.trainer == 'UNIT':
+    trainer = UNIT_Trainer(config)
 else:
-    sys.exit("Only support MOUNT")
+    sys.exit("Only support MUNIT|UNIT")
 
 try:
     state_dict = torch.load(opts.checkpoint)
@@ -81,10 +90,8 @@ except:
 
 trainer.cuda()
 trainer.eval()
-# encode = trainer.gen_a.encode if opts.a2b else trainer.gen_b.encode # encode function
-# decode = trainer.gen_b.decode if opts.a2b else trainer.gen_a.decode # decode function
-encode = trainer.gen_a.encode  # encode function
-decode = trainer.gen_b.decode_content_only # decode function
+encode = trainer.gen_a.encode if opts.a2b else trainer.gen_b.encode # encode function
+decode = trainer.gen_b.decode if opts.a2b else trainer.gen_a.decode # decode function
 
 if opts.compute_IS:
     IS = []
@@ -92,33 +99,32 @@ if opts.compute_IS:
 if opts.compute_CIS:
     CIS = []
 
-if opts.trainer == 'MOUNT':
+if opts.trainer == 'MUNIT':
     # Start testing
-    # style_fixed = Variable(torch.randn(opts.num_style, style_dim, 1, 1).cuda(), volatile=True)
-    start = time.time()
+    style_fixed = Variable(torch.randn(opts.num_style, style_dim, 1, 1).cuda(), volatile=True)
     for i, (images, names) in enumerate(zip(data_loader, image_names)):
         if opts.compute_CIS:
             cur_preds = []
         print(names[1])
         images = Variable(images.cuda(), volatile=True)
         content, _ = encode(images)
-        # style = style_fixed if opts.synchronized else Variable(torch.randn(opts.num_style, style_dim, 1, 1).cuda(), volatile=True)
-        # for j in range(opts.num_style):
-        #     s = style[j].unsqueeze(0)
-        outputs = decode(content)
-        outputs = (outputs + 1) / 2.
-        if opts.compute_IS or opts.compute_CIS:
-            pred = F.softmax(inception(inception_up(outputs)), dim=1).cpu().data.numpy()  # get the predicted class distribution
-        if opts.compute_IS:
-            all_preds.append(pred)
-        if opts.compute_CIS:
-            cur_preds.append(pred)
-        # path = os.path.join(opts.output_folder, 'input{:03d}_output{:03d}.jpg'.format(i, j))
-        basename = os.path.basename(names[1])
-        path = os.path.join(opts.output_folder, basename)
-        if not os.path.exists(os.path.dirname(path)):
-            os.makedirs(os.path.dirname(path))
-        vutils.save_image(outputs.data, path, padding=0, normalize=True)
+        style = style_fixed if opts.synchronized else Variable(torch.randn(opts.num_style, style_dim, 1, 1).cuda(), volatile=True)
+        for j in range(opts.num_style):
+            s = style[j].unsqueeze(0)
+            outputs = decode(content, s)
+            outputs = (outputs + 1) / 2.
+            if opts.compute_IS or opts.compute_CIS:
+                pred = F.softmax(inception(inception_up(outputs)), dim=1).cpu().data.numpy()  # get the predicted class distribution
+            if opts.compute_IS:
+                all_preds.append(pred)
+            if opts.compute_CIS:
+                cur_preds.append(pred)
+            # path = os.path.join(opts.output_folder, 'input{:03d}_output{:03d}.jpg'.format(i, j))
+            basename = os.path.basename(names[1])
+            path = os.path.join(opts.output_folder+"_%02d"%j,basename)
+            if not os.path.exists(os.path.dirname(path)):
+                os.makedirs(os.path.dirname(path))
+            vutils.save_image(outputs.data, path, padding=0, normalize=True)
         if opts.compute_CIS:
             cur_preds = np.concatenate(cur_preds, 0)
             py = np.sum(cur_preds, axis=0)  # prior is computed from outputs given a specific input
@@ -128,11 +134,6 @@ if opts.trainer == 'MOUNT':
         if not opts.output_only:
             # also save input images
             vutils.save_image(images.data, os.path.join(opts.output_folder, 'input{:03d}.jpg'.format(i)), padding=0, normalize=True)
-    
-    cost_time = time.time() - start
-    fps = len(image_names) / cost_time
-    print('cost {}s , fps is {}'.format(cost_time, fps))
-
     if opts.compute_IS:
         all_preds = np.concatenate(all_preds, 0)
         py = np.sum(all_preds, axis=0)  # prior is computed from all outputs
@@ -145,5 +146,23 @@ if opts.trainer == 'MOUNT':
     if opts.compute_CIS:
         print("conditional Inception Score: {}".format(np.exp(np.mean(CIS))))
 
+elif opts.trainer == 'UNIT':
+    # Start testing
+    for i, (images, names) in enumerate(zip(data_loader, image_names)):
+        print(names[1])
+        images = Variable(images.cuda(), volatile=True)
+        content, _ = encode(images)
+
+        outputs = decode(content)
+        outputs = (outputs + 1) / 2.
+        # path = os.path.join(opts.output_folder, 'input{:03d}_output{:03d}.jpg'.format(i, j))
+        basename = os.path.basename(names[1])
+        path = os.path.join(opts.output_folder,basename)
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(os.path.dirname(path))
+        vutils.save_image(outputs.data, path, padding=0, normalize=True)
+        if not opts.output_only:
+            # also save input images
+            vutils.save_image(images.data, os.path.join(opts.output_folder, 'input{:03d}.jpg'.format(i)), padding=0, normalize=True)
 else:
     pass
